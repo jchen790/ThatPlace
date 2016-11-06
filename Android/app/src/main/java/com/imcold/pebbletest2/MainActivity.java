@@ -337,7 +337,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 vf.showNext();
             }
             if(sendText)
-                sendSMS(getApplicationContext(), "3219469808", "Help! I'm in trouble!!!!!! My last location is " + locAddress);
+                sendSMS(getApplicationContext(), "7033430785", "Help! I'm in trouble!!!!!! My last location is " + locAddress);
             cancel(true);
         }
     }
