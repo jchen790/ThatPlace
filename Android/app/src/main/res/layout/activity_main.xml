@@ -41,10 +41,25 @@
         android:layout_height="wrap_content"
         android:textSize="28sp"/>
 
+    <TextView
+        android:id="@+id/date"
+        android:text="Date..."
+        android:layout_below="@+id/location"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="28sp"/>
+
     <Button
         android:id="@+id/get_location"
         android:text="Get Location"
-        android:layout_below="@+id/location"
+        android:layout_below="@+id/date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <Button
+        android:id="@+id/view_locations"
+        android:text="View Locations"
+        android:layout_below="@+id/get_location"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 

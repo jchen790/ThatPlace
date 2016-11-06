@@ -3,6 +3,8 @@ package com.imcold.pebbletest2;
 import android.*;
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.AsyncTask;
@@ -15,6 +17,7 @@ import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -36,6 +39,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 public class MainActivity extends FragmentActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
@@ -53,8 +60,10 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
     private static final int PERMISSION_ACCESS_COARSE_LOCATION = 1;
     private GoogleApiClient googleApiClient;
 
-    private TextView textView, latitude, longitude, location;
-    private Button getLocation;
+    private TextView textView, latitude, longitude, location, date;
+    private Button getLocation, viewLocations;
+    private Set<String> locations;
+    SharedPreferences sp;
 
 
     @Override
@@ -62,12 +71,27 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        sp = getSharedPreferences("THATPLACE", Context.MODE_PRIVATE);
         textView = (TextView) findViewById(R.id.textView);
         latitude = (TextView) findViewById(R.id.latitude);
         longitude = (TextView) findViewById(R.id.longitude);
         location = (TextView) findViewById(R.id.location);
+        date = (TextView) findViewById(R.id.date);
         getLocation = (Button) findViewById(R.id.get_location);
-
+        getLocation.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                getStats(v.getContext());
+            }
+        });
+        viewLocations = (Button) findViewById(R.id.view_locations);
+        viewLocations.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(v.getContext(), LocationsActivity.class);
+                startActivity(intent);
+            }
+        });
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[] { android.Manifest.permission.ACCESS_COARSE_LOCATION },
@@ -77,6 +101,30 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
 
 
         googleApiClient = new GoogleApiClient.Builder(this, this, this).addApi(LocationServices.API).build();
+    }
+
+    public void getStats(Context c) {
+        if (ContextCompat.checkSelfPermission(c, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
+
+            double lat = lastLocation.getLatitude(), lon = lastLocation.getLongitude();
+            latitude.setText("Latitude: " + lat);
+            longitude.setText("Longitude: " + lon);
+            String units = "imperial";
+            String weatherURL = String.format("http://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&units=%s&appid=%s",
+                    lat, lon, units, APP_ID);
+            Log.v("WEATHER: ", weatherURL);
+            String locationURL = "https://maps.googleapis.com/maps/api/geocode/json?latlng=" + lat + "," + lon + "&key=" + API_KEY;
+            new GetWeatherTask(textView).execute(weatherURL);
+            String[] locationsData = new String[3];
+            locationsData[0] = locationURL;
+            locationsData[1] = lat + "";
+            locationsData[2] = lon + "";
+            new GetLocationTask(location).execute(locationsData);
+
+//            }
+        }
     }
 
     @Override
@@ -94,21 +142,7 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
 
                     // Up received?
                     if(dict.getInteger(KEY_BUTTON_UP) != null) {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-                                == PackageManager.PERMISSION_GRANTED) {
-                            Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
-
-                            double lat = lastLocation.getLatitude(), lon = lastLocation.getLongitude();
-                            latitude.setText("Latitude: " + lat);
-                            longitude.setText("Longitude: " + lon);
-                            String units = "imperial";
-                            String weatherURL = String.format("http://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&units=%s&appid=%s",
-                                    lat, lon, units, APP_ID);
-                            Log.v("WEATHER: ", weatherURL);
-                            String locationURL = "https://maps.googleapis.com/maps/api/geocode/json?latlng=" + lat + "," + lon + "&key=" + API_KEY;
-                            new GetWeatherTask(textView).execute(weatherURL);
-                            new GetLocationTask(location).execute(locationURL);
-                        }
+                        getStats(context);
                     }
 
 //                    // Down received?
@@ -175,8 +209,12 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
         @Override
         protected String doInBackground(String... strings) {
             String location = "UNDEFINED";
+            String lat = "";
+            String lon = "";
             try {
                 URL url = new URL(strings[0]);
+                lat = strings[1];
+                lon = strings[2];
                 Log.v("URL: ", url.toString());
                 HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
 
@@ -202,12 +240,30 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
             } catch (IOException | JSONException e) {
                 e.printStackTrace();
             }
-            return location;
+            return location + "_" + lat + "_" + lon;
         }
 
         @Override
         protected void onPostExecute(String temp) {
-            textView.setText("Current Location: " + temp);
+            textView.setText(temp);
+            String currentDateandTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+            date.setText(currentDateandTime);
+            Set<String> tempLocations = sp.getStringSet("locations", null);
+            if(tempLocations != null)
+                Log.v("LOCATIONS SET: ", tempLocations.toString());
+            else
+                Log.v("LOCATIONS SET: ", "null");
+//            if(!location.getText().toString().equals("Location...")) {
+            if (tempLocations != null) {
+                tempLocations.add(currentDateandTime + "_" + location.getText().toString());
+            } else {
+                tempLocations = new HashSet<String>();
+                tempLocations.add(currentDateandTime + "_" + location.getText().toString());
+            }
+            SharedPreferences.Editor edit = sp.edit();
+            edit.clear();
+            edit.putStringSet("locations", tempLocations);
+            edit.commit();
             cancel(true);
         }
     }
