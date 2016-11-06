@@ -18,9 +18,12 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.animation.AnimationUtils;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ViewFlipper;
 
 import com.getpebble.android.kit.PebbleKit;
 import com.getpebble.android.kit.util.PebbleDictionary;
@@ -37,20 +40,23 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.RoundingMode;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-public class MainActivity extends FragmentActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     private static final UUID APP_UUID = UUID.fromString("F1E9423C-524E-4CE0-AFD2-572FD42B60E4");
 
     private static final int KEY_BUTTON_UP = 0;
     private static final int KEY_BUTTON_DOWN = 1;
+    private static final int KEY_BUTTON_SELECT = 2;
 
     private ViewPager mViewPager;
     private PebbleKit.PebbleDataReceiver mDataReceiver;
@@ -64,13 +70,18 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
     private Button getLocation, viewLocations;
     private Set<String> locations;
     SharedPreferences sp;
+    ViewFlipper vf;
+    LinearLayout mainBack;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getSupportActionBar().hide();
 
+//        mainBack = (LinearLayout) findViewById(R.id.activity_main);
+//        mainBack.getBackground().setAlpha(200);
         sp = getSharedPreferences("THATPLACE", Context.MODE_PRIVATE);
         textView = (TextView) findViewById(R.id.textView);
         latitude = (TextView) findViewById(R.id.latitude);
@@ -85,6 +96,7 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
             }
         });
         viewLocations = (Button) findViewById(R.id.view_locations);
+        vf = (ViewFlipper) findViewById(R.id.main_vf);
         viewLocations.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -107,10 +119,11 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
         if (ContextCompat.checkSelfPermission(c, Manifest.permission.ACCESS_COARSE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
-
+            DecimalFormat df = new DecimalFormat("#.####");
+            df.setRoundingMode(RoundingMode.CEILING);
             double lat = lastLocation.getLatitude(), lon = lastLocation.getLongitude();
-            latitude.setText("Latitude: " + lat);
-            longitude.setText("Longitude: " + lon);
+            latitude.setText("Latitude: " + df.format(lat));
+            longitude.setText("Longitude: " + df.format(lon));
             String units = "imperial";
             String weatherURL = String.format("http://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&units=%s&appid=%s",
                     lat, lon, units, APP_ID);
@@ -145,10 +158,15 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
                         getStats(context);
                     }
 
-//                    // Down received?
-//                    if(dict.getInteger(KEY_BUTTON_DOWN) != null) {
-//                        nextPage();
-//                    }
+                    if(dict.getInteger(KEY_BUTTON_SELECT) != null) {
+                        Log.v("PEBBLE RECEIVED: ", "KEY BUTTON SELECT");
+                    }
+
+                    // Down received?
+                    if(dict.getInteger(KEY_BUTTON_DOWN) != null) {
+                        Intent intent = new Intent(context, LocationsActivity.class);
+                        startActivity(intent);
+                    }
                 }
 
             };
@@ -245,7 +263,8 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
 
         @Override
         protected void onPostExecute(String temp) {
-            textView.setText(temp);
+
+            textView.setText(temp.split("_")[0]);
             String currentDateandTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
             date.setText(currentDateandTime);
             Set<String> tempLocations = sp.getStringSet("locations", null);
@@ -255,15 +274,20 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
                 Log.v("LOCATIONS SET: ", "null");
 //            if(!location.getText().toString().equals("Location...")) {
             if (tempLocations != null) {
-                tempLocations.add(currentDateandTime + "_" + location.getText().toString());
+                tempLocations.add(currentDateandTime + "_" + temp);
             } else {
                 tempLocations = new HashSet<String>();
-                tempLocations.add(currentDateandTime + "_" + location.getText().toString());
+                tempLocations.add(currentDateandTime + "_" + temp);
             }
             SharedPreferences.Editor edit = sp.edit();
             edit.clear();
             edit.putStringSet("locations", tempLocations);
             edit.commit();
+            if(vf.getDisplayedChild() == 0) {
+                vf.setInAnimation(AnimationUtils.loadAnimation(getApplicationContext(), R.anim.slide_in_from_right));
+                vf.setOutAnimation(AnimationUtils.loadAnimation(getApplicationContext(), R.anim.slide_out_to_left));
+                vf.showNext();
+            }
             cancel(true);
         }
     }
@@ -304,7 +328,8 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
 
         @Override
         protected void onPostExecute(String temp) {
-            textView.setText("Current Weather: " + temp);
+            final String DEGREE  = "\u00b0";
+            textView.setText("Weather: " + temp + " " + DEGREE + "F");
             cancel(true);
         }
     }

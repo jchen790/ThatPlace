@@ -25,6 +25,7 @@ public class LocationsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_locations);
+        getSupportActionBar().hide();
 
         locations = (ListView) findViewById(R.id.locations_list);
         locations.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -34,9 +35,10 @@ public class LocationsActivity extends AppCompatActivity {
                 Log.v("GOT ITEM", temp);
                 String[] parts = temp.split("_");
                 Log.v("SPLITTING", temp);
+                String loc = parts[1];
                 String lat = parts[2];
                 String lon = parts[3];
-                Uri gmmIntentUri = Uri.parse("geo:" + lat + "," + lon);
+                Uri gmmIntentUri = Uri.parse("geo:" + lat + "," + lon + "?q=" + Uri.encode(loc) + "?z=15");
                 Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
                 mapIntent.setPackage("com.google.android.apps.maps");
                 if (mapIntent.resolveActivity(view.getContext().getPackageManager()) != null) {
