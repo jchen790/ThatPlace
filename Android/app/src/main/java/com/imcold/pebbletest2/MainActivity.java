@@ -46,7 +46,6 @@ public class MainActivity extends FragmentActivity implements GoogleApiClient.Co
     private static final int KEY_BUTTON_DOWN = 1;
 
     private ViewPager mViewPager;
-    private PagerAdapter mPagerAdapter;
     private PebbleKit.PebbleDataReceiver mDataReceiver;
 
     private static final String APP_ID = "80e4eede56844462ef3cdc721208c31f";
