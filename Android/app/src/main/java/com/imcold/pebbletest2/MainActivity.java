@@ -2,11 +2,14 @@ package com.imcold.pebbletest2;
 
 import android.*;
 import android.Manifest;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.location.Criteria;
 import android.location.Location;
+import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -16,6 +19,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.telephony.SmsManager;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.AnimationUtils;
@@ -64,6 +68,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     private static final String APP_ID = "80e4eede56844462ef3cdc721208c31f";
     private static final String API_KEY = "AIzaSyDb3Uxtv-8eug7r5Ji2s-RVdfZJml9s0Mk";
     private static final int PERMISSION_ACCESS_COARSE_LOCATION = 1;
+    private static final int PERMISSION_SEND_SMS = 2;
     private GoogleApiClient googleApiClient;
 
     private TextView textView, latitude, longitude, location, date;
@@ -92,7 +97,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         getLocation.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                getStats(v.getContext());
+                getStats(v.getContext(), false);
+
             }
         });
         viewLocations = (Button) findViewById(R.id.view_locations);
@@ -105,23 +111,56 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             }
         });
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(this, android.Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[] { android.Manifest.permission.ACCESS_COARSE_LOCATION },
+            ActivityCompat.requestPermissions(this, new String[] { android.Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.SEND_SMS },
                     PERMISSION_ACCESS_COARSE_LOCATION);
         }
+//        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.SEND_SMS)
+//                != PackageManager.PERMISSION_GRANTED) {
+//            ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.SEND_SMS },
+//                    PERMISSION_SEND_SMS);
+//        }
 
 
 
         googleApiClient = new GoogleApiClient.Builder(this, this, this).addApi(LocationServices.API).build();
     }
 
-    public void getStats(Context c) {
+    private void sendSMS(Context c, String phoneNumber, String message)
+    {
+        if (ContextCompat.checkSelfPermission(c, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            PendingIntent pi = PendingIntent.getActivity(this, 0,
+                    new Intent(this, MainActivity.class), 0);
+            SmsManager sms = SmsManager.getDefault();
+            sms.sendTextMessage(phoneNumber, null, message, pi, null);
+        }
+    }
+
+    public void getStats(Context c, boolean sendText) {
         if (ContextCompat.checkSelfPermission(c, Manifest.permission.ACCESS_COARSE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
             DecimalFormat df = new DecimalFormat("#.####");
             df.setRoundingMode(RoundingMode.CEILING);
+            if(lastLocation == null) {
+                Toast.makeText(MainActivity.this, "Could not find a location, please try again!", Toast.LENGTH_LONG);
+                return;
+            }
             double lat = lastLocation.getLatitude(), lon = lastLocation.getLongitude();
+//            LocationManager locationManager = (LocationManager)  this.getSystemService(Context.LOCATION_SERVICE);
+//            Criteria criteria = new Criteria();
+//            String bestProvider = String.valueOf(locationManager.getBestProvider(criteria, true)).toString();
+//            Location location = locationManager.getLastKnownLocation(bestProvider);
+//            double lat = 0, lon = 0;
+//
+//            if (location != null) {
+//                Log.e("TAG", "GPS is on");
+//                lat = location.getLatitude();
+//                lon = location.getLongitude();
+//                Toast.makeText(MainActivity.this, "latitude:" + latitude + " longitude:" + longitude, Toast.LENGTH_SHORT).show();
+//            }
             latitude.setText("Latitude: " + df.format(lat));
             longitude.setText("Longitude: " + df.format(lon));
             String units = "imperial";
@@ -134,10 +173,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             locationsData[0] = locationURL;
             locationsData[1] = lat + "";
             locationsData[2] = lon + "";
-            new GetLocationTask(location).execute(locationsData);
-
-//            }
+            new GetLocationTask(location, sendText).execute(locationsData);
         }
+//            }
+
     }
 
     @Override
@@ -155,11 +194,12 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
                     // Up received?
                     if(dict.getInteger(KEY_BUTTON_UP) != null) {
-                        getStats(context);
+                        getStats(context, false);
                     }
 
                     if(dict.getInteger(KEY_BUTTON_SELECT) != null) {
                         Log.v("PEBBLE RECEIVED: ", "KEY BUTTON SELECT");
+                        getStats(context, true);
                     }
 
                     // Down received?
@@ -185,6 +225,12 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 }
 
                 break;
+            case PERMISSION_SEND_SMS:
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // All good!
+                } else {
+                    Toast.makeText(this, "Need permission to text!", Toast.LENGTH_SHORT).show();
+                }
         }
     }
 
@@ -219,9 +265,11 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     private class GetLocationTask extends AsyncTask<String, Void, String> {
         private TextView textView;
+        private boolean sendText;
 
-        public GetLocationTask(TextView textView) {
+        public GetLocationTask(TextView textView, boolean sendText) {
             this.textView = textView;
+            this.sendText = sendText;
         }
 
         @Override
@@ -263,8 +311,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
         @Override
         protected void onPostExecute(String temp) {
-
-            textView.setText(temp.split("_")[0]);
+            String locAddress = temp.split("_")[0];
+            textView.setText(locAddress);
             String currentDateandTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
             date.setText(currentDateandTime);
             Set<String> tempLocations = sp.getStringSet("locations", null);
@@ -283,11 +331,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             edit.clear();
             edit.putStringSet("locations", tempLocations);
             edit.commit();
-            if(vf.getDisplayedChild() == 0) {
+            if(vf.getDisplayedChild() == 0 && !sendText) {
                 vf.setInAnimation(AnimationUtils.loadAnimation(getApplicationContext(), R.anim.slide_in_from_right));
                 vf.setOutAnimation(AnimationUtils.loadAnimation(getApplicationContext(), R.anim.slide_out_to_left));
                 vf.showNext();
             }
+            if(sendText)
+                sendSMS(getApplicationContext(), "3219469808", "Help! I'm in trouble!!!!!! My last location is " + locAddress);
             cancel(true);
         }
     }

@@ -56,6 +56,7 @@ public class LocationsActivity extends AppCompatActivity {
         else
             Log.v("LOCATIONS SET: ", "null");
         View empty = findViewById(R.id.empty);
+
         locations.setEmptyView(empty);
         locations.setAdapter(new LocationsAdapter(this, locationsAL));
     }
